@@ -1,0 +1,9 @@
+[project]
+name = "g1-locomotion"
+version = "0.1.0"
+description = "MuJoCo Warp and RSL-RL training environment for Unitree G1 locomotion."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+
+[tool.uv]
+package = false

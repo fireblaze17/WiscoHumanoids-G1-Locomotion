@@ -1,0 +1,8 @@
+name: g1-locomotion
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12.14
+  - pip=26.2.1
+  - uv=0.12.17

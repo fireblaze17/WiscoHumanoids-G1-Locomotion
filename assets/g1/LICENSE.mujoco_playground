@@ -1,0 +1,3 @@
+MuJoCo Playground-derived XML notice
+
+The files g1_29dof_rev_1_0_mjx_feetonly.xml, g1_scene_mjx_feetonly.xml, and g1_mjx_contact_sensors.xml are derived from google-deepmind/mujoco_playground at the pinned project commit 4057c147714b6ac09b395377f1a1724bbeacc4d3. MuJoCo Playground is licensed under the Apache License 2.0. See https://github.com/google-deepmind/mujoco_playground for the upstream license text.

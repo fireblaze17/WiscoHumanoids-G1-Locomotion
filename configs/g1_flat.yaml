@@ -1,0 +1,148 @@
+xml_path: ../assets/g1/g1_scene_mjx_feetonly.xml
+impl: warp
+sim_dt: 0.002
+ctrl_dt: 0.02
+episode_length: 1000
+control_contract_version: 2
+action_scale:
+  mode: effort_fraction
+  effort_fraction: 0.25
+controller: torque_pd
+
+command: [0.0, 0.0, 0.0]
+
+command_sampling:
+  enabled: true
+  resampling_time: 10.0
+  zero_small_xy_threshold: 0.2
+  ranges:
+    vx: [-0.5, 1.0]
+    vy: [-0.3, 0.3]
+    yaw_rate: [-0.2, 0.2]
+  axis_sparsity:
+    enabled: true
+    amplitude: [1.0, 0.8, 1.0]
+    active_probability: [0.9, 0.25, 0.5]
+
+observation_noise:
+  enabled: true
+  level: 1.0
+  scales:
+    joint_pos: 0.03
+    joint_vel: 1.5
+    gravity: 0.05
+    linvel: 0.1
+    gyro: 0.2
+
+reset_randomization:
+  enabled: true
+  base_xy: [-0.5, 0.5]
+  base_yaw: [-3.14, 3.14]
+  joint_pose_scale: [0.5, 1.5]
+  root_velocity: [-0.5, 0.5]
+
+gait_randomization:
+  enabled: true
+  frequency: [1.25, 1.5]
+
+push_randomization:
+  enabled: true
+  interval_range: [5.0, 10.0]
+  magnitude_range: [0.1, 2.0]
+
+gait:
+  enabled: true
+  period: 0.8
+  offsets: [0.0, 0.5]
+  stance_threshold: 0.55
+  command_threshold: 0.1
+
+reward:
+  tracking_sigma: 0.25
+  tracking_lin_vel: 1.0
+  tracking_yaw_rate: 0.5
+  orientation: -5.0
+  alive: 0.15
+  torques: -0.00001
+  action_rate: -0.01
+  dof_vel: -0.001
+  dof_acc: -0.00000025
+  feet_slide: -0.2
+  gait_contact: 0.5
+  feet_air_time: 0.0
+  feet_air_time_min: 0.2
+  feet_air_time_max: 0.5
+  feet_air_time_command_threshold: 0.1
+  feet_swing_height: -20.0
+  feet_swing_height_target: 0.08
+  feet_swing_height_command_threshold: 0.1
+
+termination:
+  min_base_height: 0.5
+  max_base_height: 1.0
+  max_tilt_degrees: 70.0
+  illegal_contact_sensors:
+    - right_foot_left_foot_found
+    - left_hand_left_thigh_found
+    - right_hand_right_thigh_found
+
+reset_base_position: [0.0, 0.0, 0.755]
+reset_base_quaternion: [1.0, 0.0, 0.0, 0.0]
+nominal_joint_pose:
+  - -0.2
+  - 0.0
+  - 0.0
+  - 0.4
+  - -0.2
+  - 0.0
+  - -0.2
+  - 0.0
+  - 0.0
+  - 0.4
+  - -0.2
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.4
+  - 0.0
+  - 1.2
+  - 0.0
+  - 0.0
+  - 0.0
+  - 0.0
+  - -0.4
+  - 0.0
+  - 1.2
+  - 0.0
+  - 0.0
+  - 0.0
+
+floor_friction: [1.0, 0.005, 0.0001]
+
+pd_stiffness:
+  hip_yaw: 100.0
+  hip_roll: 100.0
+  hip_pitch: 100.0
+  knee: 150.0
+  ankle: 40.0
+  waist: 150.0
+  shoulder: 40.0
+  elbow: 40.0
+  wrist: 40.0
+
+pd_damping:
+  hip_yaw: 2.0
+  hip_roll: 2.0
+  hip_pitch: 2.0
+  knee: 4.0
+  ankle: 2.0
+  waist: 4.0
+  shoulder: 5.0
+  elbow: 5.0
+  wrist: 5.0
+
+naconmax: 65536
+naccdmax: 512
+njmax: 512

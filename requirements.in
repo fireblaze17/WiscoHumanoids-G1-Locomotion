@@ -1,0 +1,14 @@
+--index-url https://pypi.org/simple
+
+jax[cuda12]==0.6.2
+imageio-ffmpeg==0.6.0
+mujoco==3.13.0
+mujoco-mjx[warp]==3.13.0
+mujoco-warp==3.13.0
+playground[cuda,learning] @ git+https://github.com/google-deepmind/mujoco_playground.git@4057c147714b6ac09b395377f1a1724bbeacc4d3
+rsl-rl-lib==3.2.0
+setuptools==80.9.0
+tensorboard==2.20.0
+torch==2.9.1+cu130
+torchvision==0.24.1+cu130
+warp-lang==1.17.0
