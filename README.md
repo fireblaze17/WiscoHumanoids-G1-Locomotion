@@ -1,206 +1,122 @@
-# G1 Locomotion
+# WiscoHumanoids G1 Locomotion
 
-A simulation-only reinforcement-learning project for Unitree G1 locomotion on WSL2. The repository contains a working MuJoCo MJX/Warp GPU environment, explicit torque-limited PD control, RSL-RL PPO training, TensorBoard logging, deterministic checkpoint evaluation, MP4 rendering, and model/reward diagnostics.
+Simulation-only reinforcement-learning environment for the Unitree `g1_29dof_rev_1_0`. The project runs MuJoCo MJX with the Warp GPU backend and trains policies with RSL-RL PPO.
 
-## Project Scope
+## What Is Included
 
-- Target robot: Unitree `g1_29dof_rev_1_0`, as used in the `Lavansurendra/berkeley_humanoid` repository.
-- Simulator: MuJoCo MJX with the Warp implementation on an NVIDIA GPU inside WSL2.
-- Training: RSL-RL PPO through MuJoCo Playground's supported Torch/JAX wrapper path.
-- Control contract: v2, with bounded actions, full episode resets, timestep-integrated rewards, adaptive-KL PPO, and actuator-aware action scales.
-- Canonical project location: `/home/ankus/projects/g1_locomotion`.
+- Official Unitree G1 29-DOF revision 1.0 model and required meshes
+- MuJoCo Warp batched simulation on NVIDIA GPUs
+- Explicit torque-limited PD joint control
+- 29-dimensional bounded policy action space
+- Asymmetric 98-dimensional actor and 101-dimensional critic observations
+- Command-conditioned locomotion rewards and training randomization
+- RSL-RL PPO training, TensorBoard logging, checkpoint evaluation, and MP4 rendering
+- Reproducible conda environment and hashed Python dependency lock
 
-This project does not reuse, import, inspect, or copy configuration/code from any previous Go1/quadruped project.
+This repository does not include a real-robot interface or a pretrained production policy. Training outputs under `runs/` are local and intentionally excluded from Git.
 
-The current environment is stochastic during training and deterministic during evaluation by default. The official Unitree model is preserved for provenance/viewing, while a derived feet-only collision model is used for stable Warp training. Detailed interfaces are in [docs/g1_env_contract.md](docs/g1_env_contract.md), training operations are in [docs/training.md](docs/training.md), and robot provenance is in [docs/g1_model_provenance.md](docs/g1_model_provenance.md).
+## Requirements
 
-## Quick Start
+- Windows with WSL2 and an Ubuntu distribution
+- NVIDIA GPU with WSL GPU passthrough enabled
+- Miniforge, Conda, or Mamba available inside WSL
+- Git
 
-All commands run from `/home/ankus/projects/g1_locomotion`.
+Confirm GPU access before setup:
 
 ```bash
-# Create/update the conda-owned environment and verify the GPU stack.
+ls -l /dev/dxg
+nvidia-smi
+```
+
+Keep the repository in the WSL Linux filesystem, such as `~/projects`, rather than under `/mnt/c` or another Windows-mounted path. A separate Linux CUDA toolkit is not required; the pinned JAX, PyTorch, and Warp packages provide the required runtime components.
+
+## Setup
+
+```bash
+mkdir -p ~/projects
+cd ~/projects
+git clone https://github.com/fireblaze17/WiscoHumanoids-G1-Locomotion.git
+cd WiscoHumanoids-G1-Locomotion
 ./scripts/setup.sh
+```
+
+The setup script creates or updates the conda environment `g1-locomotion`, synchronizes the exact packages in `requirements.lock.txt`, and verifies CUDA, Warp, JAX, PyTorch, MuJoCo, EGL rendering, FFmpeg, MuJoCo Playground, and RSL-RL. It does not create `.venv` or modify system Python.
+
+Activate the environment for interactive work:
+
+```bash
+conda activate g1-locomotion
+```
+
+## Verify The Project
+
+```bash
+# Host, WSL, and GPU diagnostics
+./scripts/system_info.sh
+
+# Pinned software stack and GPU execution
 conda run -n g1-locomotion python scripts/verify_stack.py
 
-# Check the official 29-DOF model and the Warp environment contract.
+# Official 29-DOF model structure and assets
 conda run -n g1-locomotion python scripts/check_model.py
+
+# Batched Warp environment and control/reward contracts
 conda run -n g1-locomotion python scripts/test_env.py --num-envs 8 --steps 300
-
-# Run a two-iteration end-to-end PPO smoke test.
-conda run -n g1-locomotion python scripts/train.py \
-  --num-envs 4 --max-iterations 2 --checkpoint-frequency 1 \
-  --experiment smoke_stability_v2_docs
-
-# Watch only that experiment in TensorBoard.
-./scripts/tensorboard.sh --logdir runs/smoke_stability_v2_docs
-
-# Auto-discover the newest v2 checkpoint and render a short MP4.
-conda run -n g1-locomotion python scripts/test_play.py
 ```
 
-Given a checkpoint path, inspect rewards or view the deterministic actor interactively:
+Successful validation should report:
 
-```bash
-conda run -n g1-locomotion python scripts/reward_breakdown.py \
-  --checkpoint runs/<experiment>/<timestamp>/model_<iteration>.pt \
-  --command 0.5 0.0 0.0
+- MuJoCo implementation: Warp
+- JAX backend: GPU
+- PyTorch CUDA: available
+- Robot actuators: 29
+- Actor observation size: 98
+- Critic observation size: 101
+- Finite batched rollouts with no contract-test failures
 
-conda run -n g1-locomotion python scripts/play.py \
-  --checkpoint runs/<experiment>/<timestamp>/model_<iteration>.pt \
-  --render viewer --command 0.5 0.0 0.0
-```
+## Environment Summary
 
-## Conda Environment Setup
+The main configuration is [`configs/g1_flat.yaml`](configs/g1_flat.yaml).
 
-Set up the pinned conda-owned environment:
+| Setting | Value |
+| --- | --- |
+| Robot | Unitree `g1_29dof_rev_1_0` |
+| Physics rate | 500 Hz (`sim_dt=0.002`) |
+| Policy/control rate | 50 Hz (`ctrl_dt=0.02`) |
+| Physics substeps | 10 |
+| Episode limit | 1,000 policy steps / 20 simulated seconds |
+| Actions | 29 clipped joint-position offsets in `[-1, 1]` |
+| Controller | Explicit torque-limited PD |
+| Actor observation | 98 values |
+| Critic observation | 101 values |
+| Simulation backend | MuJoCo MJX Warp |
 
-```bash
-./scripts/setup.sh
-```
+Control contract v2 uses actuator-aware action scales, complete episode resets, and reward contributions scaled by `ctrl_dt`. Training enables configured command sampling, reset randomization, actor observation noise, gait-frequency variation, and planar pushes. Evaluation disables these by default.
 
-Manual verification:
-
-```bash
-conda run -n g1-locomotion python scripts/verify_stack.py
-```
-
-Interactive use:
-
-```bash
-conda activate g1-locomotion
-python scripts/verify_stack.py
-```
-
-Conda owns the environment and Python interpreter. The setup script uses `uv pip` inside the conda env only to synchronize `requirements.lock.txt`; it does not run `uv sync`, create `.venv`, or modify system Python. Registry artifacts are hash-locked. Playground is a VCS dependency, so it is pinned by full Git SHA and `verify_stack.py` checks the installed `direct_url.json` commit.
-
-Regenerate the lock only after intentionally changing `requirements.in`:
-
-```bash
-./scripts/lock_requirements.sh
-```
-
-The lock command targets CPython 3.12 on Linux x86-64 and selects PyTorch's CUDA 13.0 backend without exposing the PyTorch wheel index as a general package source.
-
-## Pinned Stack
-
-- Conda env: `g1-locomotion`
-- Python: `3.12.14`
-- conda bootstrap tools: `pip==26.2.1`, `uv==0.12.17`
-- MuJoCo Playground source: `google-deepmind/mujoco_playground@4057c147714b6ac09b395377f1a1724bbeacc4d3`
-- MuJoCo: `3.13.0`
-- MuJoCo MJX: `3.13.0`
-- MuJoCo Warp: `3.13.0`
-- NVIDIA Warp: `warp-lang==1.17.0`
-- JAX CUDA package: `jax[cuda12]==0.6.2`
-- PyTorch: `torch==2.9.1+cu130` from the official CUDA 13.0 wheel index
-- RSL-RL: `rsl-rl-lib==3.2.0`
-- TensorBoard: `tensorboard==2.20.0`
-- Setuptools: `setuptools==80.9.0` for TensorBoard CLI `pkg_resources` compatibility
-
-Version rationale:
-
-- Python `3.12` matches MuJoCo Playground's current source install path.
-- MuJoCo, MuJoCo MJX, and MuJoCo Warp are aligned at `3.13.0` to avoid API drift.
-- `warp-lang==1.17.0` satisfies MuJoCo Playground and is pinned by `mujoco-mjx[warp]==3.13.0`.
-- `jax==0.6.2` and `rsl-rl-lib==3.2.0` come from MuJoCo Playground's current lock resolution.
-- PyTorch `2.9.1+cu130` is installed from PyTorch's CUDA 13.0 wheel index for the host NVIDIA R596/CUDA 13.2 driver path.
-
-Observed upstream SHAs during dependency selection:
-
-- MuJoCo Playground: `4057c147714b6ac09b395377f1a1724bbeacc4d3`
-- MuJoCo Warp main: `87e742d31c96f69a70741c51b9ade43bd8d1b60b`
-- NVIDIA Warp main: `061b4d01292b0d493f77a82c0767ef8e5d75e9a6`
-
-## Current Limits
-
-- No claim of late-run stability until a fresh v2 baseline reaches 10,000 iterations.
-- No real-robot deployment or hardware interface; this repository remains simulation-only.
-- Friction, mass, inertia, motor-strength, PD-gain, latency, or terrain randomization
-- No custom Warp-to-Torch conversion layer; the pinned Playground bridge is used.
-- Configuration or code copied from previous Go1/quadruped projects
-
-## Unitree G1 Model Assets
-
-The official Unitree `g1_29dof_rev_1_0` MuJoCo XML and its 35 referenced meshes are vendored under `assets/g1/`. Provenance, source SHAs, Wisconsin-vs-Unitree comparison notes, joint order, joint ranges, effort limits, and mesh list are documented in `docs/g1_model_provenance.md`.
-
-Inspect the model:
-
-```bash
-conda run -n g1-locomotion python scripts/check_model.py
-```
-
-Run a headless render smoke test:
-
-```bash
-conda run -n g1-locomotion python scripts/view_model.py --headless
-```
-
-For an interactive MuJoCo viewer:
-
-```bash
-conda activate g1-locomotion
-python scripts/view_model.py
-```
-
-These scripts load and render the provenance model independently of the RL environment.
-
-## G1 Environment
-
-The environment lives under `src/g1_locomotion/envs`. It uses the official vendored G1 model, converts the compiled model to direct torque actuators in memory, and runs MuJoCo MJX with the Warp backend. Policy actions are 29 bounded joint-position offsets around the TWIST2 G1 nominal pose; an explicit torque-limited PD controller applies those targets at 500 Hz physics / 50 Hz policy-control timing. The current control contract is version 2: policy outputs are clipped to `[-1, 1]` before control, observation history, and action-rate cost; per-joint target scales request 25% of each actuator's static effort at the nominal pose. Commands are sampled from narrowed Unitree-style ranges and every reward contribution is integrated over the `0.02 s` control timestep.
-
-The training environment now includes MuJoCo Playground G1-style stochastic training aids: actor observation noise, randomized reset xy/yaw/joint-pose scale/root velocity, randomized gait frequency, random planar pushes, and command-axis sparsity. It deliberately does not add Playground friction, mass, inertia, motor-strength, PD-gain, latency, or terrain randomization because those were not part of the inspected Playground G1 joystick environment. Deterministic play/viewer mode disables the stochastic training aids by default unless `--enable-randomization` is passed.
-
-Training uses `assets/g1/g1_scene_mjx_feetonly.xml`, a MuJoCo Playground-style MJX/Warp feet-only collision scene for the same 29-DOF G1. The official full-mesh Unitree scene remains available as `assets/g1/g1_scene.xml` for provenance checks and viewing. MuJoCo Warp contact buffers use MuJoCo Playground's G1 aggregate contact budget with bounded CCD memory for this laptop GPU: `naconmax=65536`, `naccdmax=512`, and `njmax=512`.
-
-## Resolved Issues
-
-- The old requirements file claimed it came from a deleted `uv.lock` export and had no artifact hashes. It is now generated by `scripts/lock_requirements.sh` with dependency annotations and registry hashes; the Playground VCS dependency is separately pinned and verified by full Git SHA.
-- Setup previously accepted any Python 3.12/pip/uv patch versions and only printed most stack versions. The conda bootstrap and direct stack are now asserted exactly, dependency consistency is checked, and verification includes Playground provenance, bundled FFmpeg execution, and a nonblank EGL frame.
-- TensorBoard CLI initially failed because `tensorboard==2.20.0` imports `pkg_resources`; fixed by pinning `setuptools==80.9.0` and verifying TensorBoard in `scripts/verify_stack.py`.
-- MP4 play smoke initially reached video encoding and failed because Python `mediapy` does not provide the `ffmpeg` executable it invokes. Installing conda-forge's full `ffmpeg` package then shadowed WSL/NVIDIA EGL with conda GL libraries and broke headless MuJoCo rendering. The reproducible stack instead pins `imageio-ffmpeg==0.6.0` and passes its isolated bundled executable to `mediapy`; stack verification checks that binary without altering the simulator's GL stack.
-- Early 2048-env rollouts produced MuJoCo Warp broadphase overflows with `naconmax=512`; fixed by increasing the aggregate contact budget to `naconmax=65536`.
-- Matching `naccdmax=65536` caused CUDA OOM on the RTX 5070 Ti Laptop GPU; fixed by keeping `naccdmax=512` while preserving the larger aggregate contact budget.
-- `njmax=90` produced `nefc` constraint overflows in this explicit-PD setup; fixed by using `njmax=512`.
-- Long training later hit a CUDA launch failure while using the official full-collision mesh XML. The training config now uses a MuJoCo Playground-style feet-only MJX collision XML to avoid unstable mesh/cylinder collision paths during Warp training, while preserving the official model separately.
-- The upstream MuJoCo Playground feet-only XML used a mirrored `right_hip_roll_joint` range that did not match the official Unitree/Wisconsin model. The local training XML overrides that joint range back to `[-2.9671, 0.5236]` so the MJX collision model keeps the official 29-DOF robot limits.
-- Added a repo-style feet slide penalty with weight `-0.2` to discourage scuttling/sliding while a foot is in floor contact. The weight matches Unitree RL Lab and Unitree RL Gym's closest contact-velocity term; MuJoCo Playground G1 uses `-0.25`, and Berkeley-style biped configs commonly use `-0.1`.
-- Set `feet_air_time=0.0` for now after adding explicit gait contact and swing-height shaping. The air-time metric is still logged for diagnostics, but it no longer contributes to reward.
-- Added a no-phase `feet_swing_height=-20.0` penalty using the simple Unitree G1-style airborne-foot target-height term: airborne foot sites are shaped toward `0.08 m`, while planted feet and near-zero commands are ignored. Berkeley Humanoid Lite's public biped config uses air-time rather than a separate height target, so this is documented as Unitree-style swing-height shaping.
-- Added gait timing/contact shaping using Unitree RL Lab 29DOF values: `period=0.8`, offsets `[0.0, 0.5]`, stance threshold `0.55`, and `gait_contact=0.5`. The actor observation now appends `[sin(2*pi*phase), cos(2*pi*phase)]`, zeroed for near-zero commands.
-- Added an asymmetric RSL-RL critic observation: the actor/deployed policy now receives the 98-float `state`, while the critic receives `privileged_state` with the same 98 floats plus body-frame base linear velocity, for 101 floats total.
-- Added an orientation penalty. The current config uses `-5.0 * (projected_gravity_x^2 + projected_gravity_y^2)` to discourage roll/pitch tilt while keeping yaw free.
-- Added Unitree-style smoothness penalties: `action_rate=-0.01`, `dof_vel=-1e-3`, and `dof_acc=-2.5e-7`. Under control contract v2, the action-rate term uses consecutive clipped/applied actions, matching the values used for PD targets and previous-action observations.
-- A previous raw-action bridge let unbounded Gaussian outputs enter action history and the action-rate reward. In late-run failures, action-rate cost and value loss jumped abruptly together. Control contract v2 retires that bridge: the environment receives only clipped actions, while the Torch wrapper logs pre-clip policy statistics without using them for dynamics or reward. The bounded action-rate cost cannot exceed `29 * (2^2) = 116`; at weight `-0.01` and `ctrl_dt=0.02`, its worst contribution is `-0.0232` per step.
-- Auto-reset previously did not guarantee that every stateful environment field was replaced at an episode boundary. The v2 wrapper uses MuJoCo Playground's `wrap_for_brax_training(..., full_reset=True)`, resetting action history, gait phase, foot timers, command/push schedules, velocities, RNG state, and observations.
-- Reward weights previously acted as per-step amounts rather than rates, making returns depend directly on the 50 Hz policy rate. Every v2 reward contribution is `raw_term * configured_weight * ctrl_dt`; raw costs and weighted rates remain separately logged. New reward/return curves are therefore roughly 50 times smaller than comparable legacy curves.
-- Height-only termination allowed severely tilted and self-colliding states to remain in rollouts. V2 retains Wisconsin's `0.5-1.0 m` height bounds and adds a 70-degree tilt limit plus the already-active foot-to-foot and same-side hand-to-thigh sensors. It deliberately does not expand Warp collision pairs.
-- Fixed-learning-rate PPO could keep applying the same step size during a sharp policy-distribution change. V2 uses RSL-RL adaptive KL scheduling with initial LR `3e-4`, desired KL `0.01`, and RSL-RL's built-in `[1e-5, 1e-2]` bounds.
-- The former uniform `0.5 rad` action scale could ask low-effort joints for disproportionately aggressive targets. V2 derives each scale as `0.25 * effort_limit / Kp`, preserving TWIST2 gains while bounding the nominal static request to 25% of actuator effort.
-- Changed the training command ranges to the narrower G1 range `vx=[-0.5, 1.0]`, `vy=[-0.3, 0.3]`, and `yaw_rate=[-0.2, 0.2]`.
-- Added MuJoCo Playground G1-style stochastic training aids: actor observation noise, reset randomization, per-episode gait-frequency randomization, random planar pushes, and command-axis sparsity. A JAX/RSL-RL smoke run initially failed because push metric keys were only created after stepping; fixed by seeding `randomization/push_magnitude`, `randomization/push_x`, and `randomization/push_y` at reset so the `lax.scan` metrics tree is stable.
-
-Run the environment smoke test:
-
-```bash
-conda run -n g1-locomotion python scripts/test_env.py
-```
-
-The action and observation contracts are documented in `docs/g1_env_contract.md`.
+See [`docs/g1_env_contract.md`](docs/g1_env_contract.md) for the complete action, observation, reward, termination, control, and randomization contracts.
 
 ## Training
 
-The training entrypoint uses a small project subclass of MuJoCo Playground's RSL-RL wrapper with RSL-RL's `OnPolicyRunner`/PPO implementation. It retains Playground's Torch/JAX DLPack bridge and bounded `[-1, 1]` step path, enables complete episode resets, and logs raw pre-clip policy statistics only as diagnostics. The actor uses the deployable 98-float `state`; the critic uses 101-float `privileged_state` with body-frame base linear velocity appended. PPO, GAE, critic loss, clipping, gradient clipping, and adaptive-KL learning-rate updates remain entirely RSL-RL-owned.
-
-Run a short end-to-end PPO smoke test:
+Run a short end-to-end smoke test first:
 
 ```bash
-conda run -n g1-locomotion python scripts/train.py --num-envs 4 --max-iterations 2 --checkpoint-frequency 1 --experiment smoke
+conda run -n g1-locomotion python scripts/train.py \
+  --num-envs 4 \
+  --max-iterations 2 \
+  --checkpoint-frequency 1 \
+  --experiment smoke
 ```
 
-Runs are written under `runs/<experiment>/<timestamp>/` with the effective environment config, PPO config, run metadata, TensorBoard logs, finite-loss history, and RSL-RL `model_*.pt` checkpoints.
+Runs are saved under:
 
-Recommended contract-v2 validation baseline:
+```text
+runs/<experiment>/<timestamp>/
+```
+
+Each run contains checkpoints, TensorBoard events, effective environment and PPO configurations, metadata, and finite-loss history.
+
+A full contract-v2 stability baseline is:
 
 ```bash
 conda run -n g1-locomotion python scripts/train.py \
@@ -210,142 +126,111 @@ conda run -n g1-locomotion python scripts/train.py \
   --experiment g1_stability_v2_10k
 ```
 
-This collects `2048 * 24 * 10000 = 491,520,000` environment transitions. Each PPO iteration advances every environment by `24 * 0.02 = 0.48` simulated seconds. The 1,000-step episode limit is 20 simulated seconds. This is a stability-validation baseline, not proof of a solved gait. See [docs/training.md](docs/training.md) for PPO defaults, metric interpretation, resume rules, and evaluation commands.
+This configuration collects 491,520,000 transitions. Treat it as a long-run stability validation, not a guarantee of a solved locomotion policy. Hardware capacity may require adjusting `--num-envs`; keep the environment and PPO contracts recorded with each run.
 
-Do not resume a control-contract-v1 checkpoint under the v2 defaults. `scripts/train.py` rejects that mismatch explicitly. Legacy checkpoints remain loadable in `scripts/play.py` for visual comparison, with a warning; their rewards and returns are not numerically comparable to v2 because rewards are now timestep-scaled.
+PPO defaults, rollout math, resume rules, and metric interpretation are documented in [`docs/training.md`](docs/training.md).
 
-## Local Checkpoint References
+## TensorBoard
 
-`runs/` is intentionally ignored by Git. The following paths describe artifacts on the current workstation and are not present in a fresh clone.
-
-### Legacy V1 Visual Baseline
-
-This gait + swing-height checkpoint predates control contract v2. It is the best checkpoint from the local `g1_10k_gait_no_airtime` run by its legacy TensorBoard mean reward and episode length:
-
-```text
-runs/g1_10k_gait_no_airtime/20260922_182105/model_6500.pt
-```
-
-Selection notes from TensorBoard:
-
-```text
-checkpoint: model_6500.pt
-Train/mean_reward: 1904.30
-Train/mean_episode_length: 1000.00
-actor observation: 98
-critic observation: 101
-```
-
-Fixed straight-forward deterministic eval at `[0.5, 0.0, 0.0]` completed a full 1000-step episode without falling:
-
-```text
-total episode reward: 1937.176
-episode length: 1000
-termination reason: timeout
-average commanded velocity tracking error: 0.385491
-average actuator effort: 8.010837
-summary: runs/play/20260922_205959/evaluation.json
-```
-
-This checkpoint is useful as a legacy visual/evaluation baseline, but it is not a solved locomotion policy. It predates control contract v2 and must not be resumed under the current environment defaults. Its reward values are not comparable to new timestep-scaled runs.
-
-Fixed straight-forward viewer command for this legacy checkpoint:
+Start TensorBoard in a separate terminal and scope it to one experiment:
 
 ```bash
-conda run -n g1-locomotion python scripts/play.py \
-  --checkpoint runs/g1_10k_gait_no_airtime/20260922_182105/model_6500.pt \
-  --env-config runs/g1_10k_gait_no_airtime/20260922_182105/env_config.yaml \
-  --render viewer \
-  --steps 1000 \
-  --render-every 1 \
-  --command 0.5 0.0 0.0
-```
-
-An older feet-airtime v1 reference used for visual inspection is also local:
-
-```text
-runs/g1_10k_feet_airtime/20260921_220546/model_5500.pt
-```
-
-By default, `scripts/play.py` disables command sampling, reset randomization, observation noise, gait-frequency randomization, and pushes so viewer/eval runs are repeatable. When `--command` is provided, that command is fixed exactly. Pass `--enable-randomization` only when you intentionally want training-style stochastic evaluation.
-
-### V2 Smoke Checkpoint
-
-The local validation-only v2 smoke checkpoint is:
-
-```text
-runs/smoke_stability_v2_docs/20261014_180907/model_1.pt
-```
-
-This proves the v2 rollout/update/checkpoint path, not locomotion quality. `scripts/test_play.py` now discovers the newest contract-v2 checkpoint from run metadata instead of relying on a particular experiment name.
-
-## TensorBoard Training Dashboard
-
-TensorBoard is installed into the `g1-locomotion` conda environment by `./scripts/setup.sh`. Point it at one experiment directory so historical runs do not clutter the dashboard.
-
-Start the dashboard in one terminal:
-
-```bash
-cd ~/projects/g1_locomotion
 ./scripts/tensorboard.sh --logdir runs/g1_stability_v2_10k
 ```
 
-Then start training in another terminal:
+The dashboard opens at `http://127.0.0.1:6006` and updates while training runs. Use `--browser none` when browser auto-launch is not desired.
 
-```bash
-conda run -n g1-locomotion python scripts/train.py \
-  --num-envs 2048 --max-iterations 10000 --checkpoint-frequency 500 \
-  --experiment g1_stability_v2_10k
-```
+## Evaluate A Checkpoint
 
-The launcher defaults to `http://127.0.0.1:6006` and tries to open Chrome from WSL first, then falls back to the default browser. To run without opening a browser:
-
-```bash
-./scripts/tensorboard.sh --logdir runs/g1_stability_v2_10k --browser none
-```
-
-## Deterministic Policy Evaluation
-
-Evaluate a trained RSL-RL checkpoint with deterministic actor inference and MP4 rendering:
+Render a deterministic MP4:
 
 ```bash
 conda run -n g1-locomotion python scripts/play.py \
-  --checkpoint runs/<experiment>/<timestamp>/model_<iteration>.pt --render video
+  --checkpoint runs/<experiment>/<timestamp>/model_<iteration>.pt \
+  --render video \
+  --command 0.5 0.0 0.0
 ```
 
-Run the evaluation smoke test after a smoke training checkpoint exists:
+Open the interactive MuJoCo viewer through WSLg:
 
 ```bash
-conda run -n g1-locomotion python scripts/test_play.py
+conda run -n g1-locomotion python scripts/play.py \
+  --checkpoint runs/<experiment>/<timestamp>/model_<iteration>.pt \
+  --render viewer \
+  --command 0.5 0.0 0.0
 ```
 
-`scripts/play.py` uses the same environment, observation construction, action scaling, MuJoCo Playground wrapper, and RSL-RL actor architecture as training. It does not add reward terms. It disables training-time stochasticity by default for deterministic evaluation, while `--enable-randomization` is available when you want to inspect the policy under the same noise/reset/push path used during training.
-
-## WSL And VS Code Access
-
-Open the repository from inside WSL:
+Inspect reward components and action/torque diagnostics:
 
 ```bash
-cd ~/projects/g1_locomotion
+conda run -n g1-locomotion python scripts/reward_breakdown.py \
+  --checkpoint runs/<experiment>/<timestamp>/model_<iteration>.pt \
+  --command 0.5 0.0 0.0
+```
+
+Omit `--command` and add `--enable-randomization` to evaluate with training-style command sampling and randomization. Legacy control-contract-v1 checkpoints are visual references only and cannot be resumed for v2 training.
+
+## Model Viewing
+
+View the nominal model without a policy:
+
+```bash
+conda run -n g1-locomotion python scripts/view_model.py
+```
+
+For a headless rendering check:
+
+```bash
+conda run -n g1-locomotion python scripts/view_model.py --headless
+```
+
+The immutable official model is used for provenance and viewing. Training uses the separately named feet-only collision model optimized for MJX/Warp. Source attribution, licenses, hashes, joint ordering, limits, and model differences are documented in [`docs/g1_model_provenance.md`](docs/g1_model_provenance.md).
+
+## Repository Layout
+
+```text
+assets/g1/                 Vendored G1 XML, meshes, and licenses
+configs/g1_flat.yaml       Environment, controller, reward, and randomization config
+docs/                      Environment, training, and model documentation
+scripts/setup.sh           Idempotent conda environment setup
+scripts/verify_stack.py    Dependency, CUDA, EGL, and backend verification
+scripts/test_env.py        Environment contract and rollout tests
+scripts/train.py           RSL-RL PPO training entrypoint
+scripts/play.py            Checkpoint evaluation and rendering
+src/g1_locomotion/         Environment and training integration code
+```
+
+## Dependency Updates
+
+Direct dependencies are pinned in `requirements.in`; the complete resolution is committed in `requirements.lock.txt`. After intentionally changing a direct dependency, regenerate and verify the lock with:
+
+```bash
+./scripts/lock_requirements.sh
+./scripts/setup.sh
+```
+
+Do not independently upgrade CUDA, JAX, PyTorch, Warp, MuJoCo, Playground, or RSL-RL packages. They are pinned as a tested compatibility set.
+
+## VS Code And Windows Access
+
+From the repository inside WSL:
+
+```bash
 code .
 ```
 
-From Windows Explorer or VS Code, use the WSL network path:
+The same files are accessible from Windows at:
 
 ```text
-\\wsl$\Ubuntu\home\ankus\projects\g1_locomotion
+\\wsl$\<DistroName>\home\<LinuxUser>\projects\WiscoHumanoids-G1-Locomotion
 ```
 
-If Windows lists the distro under a different name, replace `Ubuntu` with the name shown under `\\wsl$`.
+Use VS Code's WSL extension so terminals, Python, Git, and GPU tools run inside the Linux environment.
 
-Keep this Linux filesystem path as the canonical project copy. Do not move the repository to `/mnt/c`, `/mnt/d`, or another Windows-mounted filesystem.
+## Common Problems
 
-## Diagnostics
-
-Run:
-
-```bash
-./scripts/system_info.sh
-```
-
-The script reports Ubuntu, WSL, kernel, CPU, memory, Python, Git, and NVIDIA GPU visibility details. GPU passthrough is considered working only when `/dev/dxg` exists and `nvidia-smi` completes successfully.
+- Missing `/dev/dxg` or failing `nvidia-smi`: update the Windows NVIDIA driver, run `wsl --shutdown` from PowerShell, and reopen Ubuntu.
+- JAX or PyTorch reports CPU: rerun `./scripts/setup.sh`; do not add a separate CUDA toolkit as a workaround.
+- Interactive viewer fails: verify WSLg and use `--render video` for reliable offscreen evaluation.
+- TensorBoard is cluttered: pass an experiment-specific `--logdir` instead of the entire `runs/` directory.
+- Training runs out of GPU memory: reduce `--num-envs`; do not arbitrarily increase MuJoCo contact or CCD buffers.
